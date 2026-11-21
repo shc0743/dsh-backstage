@@ -1,0 +1,76 @@
+# Build and publish dsh-backstage.
+#
+# The Windows launcher (bin/dsh-winsta-run.exe) is never committed: this
+# workflow builds it on a Windows runner, then packs and publishes the tarball.
+#
+# Publishing uses npm trusted publishing (OIDC). The npm package is configured
+# with this repository and this workflow file, so `id-token: write` is the only
+# requirement: do NOT add a NODE_AUTH_TOKEN secret, or npm will authenticate
+# with that token instead of the trusted-publisher exchange.
+#
+# Trigger a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build launcher, pack, publish
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build the launcher with MSVC
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Check JavaScript syntax
+        shell: pwsh
+        run: |
+          node --check index.js
+          node --check client.js
+          node --check scripts/prepack.mjs
+
+      - name: Launcher smoke test (informational)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          ./bin/dsh-winsta-run.exe --list
+          ./bin/dsh-winsta-run.exe --diag
+
+      - name: Pack the npm tarball
+        shell: pwsh
+        run: npm pack
+
+      - name: Upload the tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-backstage-tarball
+          path: dsh-backstage-*.tgz
+          if-no-files-found: error
+
+      - name: Publish to npm with trusted publishing (OIDC)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: npm publish --provenance --access public

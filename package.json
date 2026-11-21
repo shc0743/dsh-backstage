@@ -1,0 +1,75 @@
+{
+  "name": "dsh-backstage",
+  "version": "1.0.0",
+  "description": "Backstage: runs DeepSeek Harness shell commands on a private Windows desktop so windows, tests and automation never appear on your screen or take focus.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shc0743/dsh-backstage.git"
+  },
+  "homepage": "https://github.com/shc0743/dsh-backstage#readme",
+  "bugs": {
+    "url": "https://github.com/shc0743/dsh-backstage/issues"
+  },
+  "os": [
+    "win32"
+  ],
+  "icon": "icon.svg",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "windows",
+    "desktop",
+    "isolation",
+    "shell",
+    "powershell",
+    "automation"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "bin",
+    "locale",
+    "docs",
+    "scripts",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "build.ps1",
+    "src",
+    ".github/workflows/publish.yml"
+  ],
+  "scripts": {
+    "prepack": "node scripts/prepack.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-pwsh-sandbox": ">=0.2.2-rc.5",
+    "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.5",
+    "@deepseek-ai/dsh-shell": ">=0.2.2-rc.5",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.5",
+    "@deepseek-ai/schemastery": ">=3.18.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
+    }
+  }
+}

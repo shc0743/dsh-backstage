@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Backstage — isolated desktop shell (Windows)",
+    "description": "Runs shell commands on a private desktop so windows, tests and automation never appear on your screen or take focus. Adds a four-way mode setting and an optional pwsh_headless tool.",
+    "detail": "docs/DETAIL.md"
+  }
+}

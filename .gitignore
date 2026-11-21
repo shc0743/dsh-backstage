@@ -1,0 +1,7 @@
+# Build outputs are never committed: the publish workflow builds the launcher.
+build/
+bin/*.exe
+
+# Package-manager and pack artifacts.
+node_modules/
+*.tgz

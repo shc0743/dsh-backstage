@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Backstage 隔离桌面（Windows）",
+    "description": "让 shell 命令在私有桌面中运行：窗口、测试与自动化不会出现在你的屏幕上，也不会抢占焦点。提供四档模式设置以及可选的 pwsh_headless 工具。",
+    "detail": "docs/DETAIL.md"
+  }
+}
