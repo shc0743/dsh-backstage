@@ -6,8 +6,11 @@ applications and its automated tests never appear on the user's screen, never
 take focus and receive no input. A four-way mode setting decides when this
 happens, and two of the modes add a separate `pwsh_headless` tool.
 
-It never edits the DeepSeek Harness installation. The shipped `pwsh-sandbox`
-executor row is disabled and this bundle's `backstage` row provides `ctx.shell`.
+It never edits the DeepSeek Harness installation. It does not replace the
+shipped `pwsh-sandbox` executor either: the `backstage` row mounts after it and
+patches the running executor's `resolve` / `argv` / `confine` methods in
+place. Enabling or disabling the bundle therefore takes effect immediately, and
+a bundle failure leaves the shipped shell untouched.
 
 ## Modes
 
@@ -31,8 +34,8 @@ restarting the harness and persists through the profile's Cordis patch.
 | `launcherPath` | empty | Launcher executable override. Empty uses `bin/dsh-winsta-run.exe`. |
 | `onUnavailable` | `error` | Fail the command when the isolated desktop cannot be created, or (`plain`) run it unisolated and log a warning. |
 
-The shipped executor's own settings (`timeoutMs`, `maxOutputBytes`, …) keep
-working unchanged.
+The shipped executor's own settings (`timeoutMs`, `maxOutputBytes`, …) stay on
+the Shell settings page and keep working unchanged.
 
 ## Install
 
@@ -48,9 +51,8 @@ on a path **without a Low mandatory integrity label**; a Low launcher would run
 every command at Low integrity, and the executor refuses with an actionable
 error when that happens.
 
-After the first installation, the profile may need one DeepSeek Harness restart
-to compose the replaced `shell` provider cleanly (the live load can report a
-service-handover error while the old provider is still registered).
+No restart is needed after installation: the bundle patches the running
+executor and restores it when unloaded.
 
 ## Build and verify
 
@@ -65,6 +67,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 `scripts/verify.ps1` proves visibility isolation from inside the harness shell;
 `scripts/sandbox-proof.ps1` proves that a confined workspace-write command runs
 on the isolated desktop while file writes stay confined.
+
+Enabling or disabling the plugin takes effect immediately: the patch is applied
+on mount and restored on unload, and no `shell` service handover happens.
 
 ## Publishing
 

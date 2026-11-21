@@ -8,7 +8,7 @@
 - 它们不在你的屏幕上显示、不抢焦点、收不到你的键鼠输入；
 - 命令的 stdout / stderr / 退出码 / stdin / 超时 / 后台作业 / 输出截断行为与原生 shell 一致。
 
-它不改动 DeepSeek Harness 安装目录：内置的 `pwsh-sandbox` 行被本插件的 `backstage` 行替换，全部逻辑通过 profile bundle 提供。
+它不改动 DeepSeek Harness 安装目录，也不替换 `shell` 服务：`backstage` 行在内置 `pwsh-sandbox` 执行器之后挂载，给**正在运行**的执行器原型打补丁（`resolve` / `argv` / `confine`），卸载时恢复。因此启用/禁用即时生效，不会出现 `service "shell" has been registered`，插件失败时内置 shell 也照常可用。
 
 ## 四档模式
 
@@ -32,9 +32,17 @@
 | `launcherPath` | 空 | 启动器路径覆盖；留空使用包内 `bin/dsh-winsta-run.exe`。 |
 | `onUnavailable` | `error` | 私有桌面不可用时让命令失败；设为 `plain` 则退化为不隔离运行并记录警告。 |
 
-其余字段（`timeoutMs`、`maxOutputBytes` 等）与内置 PowerShell 执行器一致，照常生效。
+其余字段（`timeoutMs`、`maxOutputBytes` 等）仍由内置 PowerShell 执行器自己的设置页管理，本插件不接管。
 
 ## 工作原理
+
+插件挂载时对已运行的 `SandboxPwshExecutor` 原型做三处运行时补丁：
+
+- `resolve(request)`：按模式给隔离命令加上 `DSH_ISOLATED_DESKTOP` / `DSH_ISOLATION_MODE`，并做 `pwsh_headless` 标记的交叉校验；
+- `argv(spec)`：隔离命令的 argv 前面插入启动器（未隔离命令原样返回）；
+- `confine(spec, policy, signal)`：受限模式下把启动器放进沙箱 runner 内侧（`--allow-low`），由它以受限令牌建桌面并启动真正的 `pwsh`。
+
+未隔离路径逐字调用原始方法；插件卸载时把这些原型方法恢复。这样既不需要替换服务，也不需要重启 Harness。
 
 ```
 danger-full-access：
@@ -80,13 +88,14 @@ danger-full-access：
 
 - 安装（已发布版本）：`plugin_manager` 的 `install_bundle`，target 填 `dsh-backstage`。
 - 安装（本地目录）：target 填本包绝对目录。
-- 本插件**替换 `ctx.shell` 服务提供者**。在运行中的 profile 里做这种替换时，一次实时重组合可能报 `service "shell" has been registered`：旧提供者尚未释放，新提供者已在注册。**重启 DeepSeek Harness 后组合是正确的**（本包在 profile 的 bundle 列表末尾，先禁用内置行再挂载本行）。
-- 为减少重组合，插件所有配置字段都声明为 volatile：设置页与配置改动会**原地生效，不重挂载插件**。
-- 回滚：设置里切到「从不使用」即可停用隔离；彻底移除用 `plugin_manager` 的 `set_bundle`（禁用）或 `remove_bundle`，内置 `pwsh-sandbox` 行会自动恢复。
+- 本插件**不替换 `shell` 服务**：挂载时给已运行的 `SandboxPwshExecutor` 原型打补丁，卸载时恢复。因此启用/禁用即时生效，不需要重启，也不会出现 `service "shell" has been registered`。插件失败时内置 shell 不受影响。
+- 插件所有配置字段都声明为 volatile：设置页与配置改动会**原地生效，不重挂载插件**。
+- 回滚：设置里切到「从不使用」即可停用隔离；彻底移除用 `plugin_manager` 的 `set_bundle`（禁用）或 `remove_bundle`，运行时补丁随之恢复。
+- **注意**：npm 上的 `1.0.0` 是旧的“替换服务”设计，启用时会报 `service "shell" has been registered`；修复版为 `1.0.1`（运行时补丁）。
 
 ## 发布（npm / GitHub Actions）
 
-- 包 `dsh-backstage@1.0.0`，Apache-2.0；npm 上该名字可用（发布前已确认）。
+- 包 `dsh-backstage@1.0.1`，Apache-2.0；`1.0.0` 为旧的替换服务设计，请在 `1.0.1` 发布后更新。
 - `.github/workflows/publish.yml` 在 `windows-latest` 上：`./build.ps1` 构建启动器 → `node --check` → `--list/--diag` 冒烟（非阻断）→ `npm pack` 上传 tarball 制品 → 推送 `v*` 标签时 `npm publish --access public`。
 - 使用 **npm trusted publishing（OIDC）**：npm 包里已把 trusted publisher 配成 GitHub 仓库 `shc0743/dsh-backstage` + 工作流文件 `publish.yml`，工作流声明 `id-token: write`，发布时不需要任何 token secret。不要再配 `NODE_AUTH_TOKEN`，否则会走 token 认证而不是可信发布交换。
 - `scripts/prepack.mjs` 在打包/发布前检查 `bin/dsh-winsta-run.exe` 是否存在，避免发布缺少启动器的包；本机与 CI 都必须先构建。
@@ -133,11 +142,13 @@ DSH 内（`always` 模式）：
 - 失败路径：把 `launcherPath` 指向不存在的文件后，命令以
   `DSH_WINSTA_UNAVAILABLE: 隔离桌面不可用（Error: spawnSync … ENOENT）…` 失败，并给出整改建议。
 
-发布包（`dsh-backstage@1.0.0`）：
+发布包（`dsh-backstage@1.0.1`）：
 
-- npm 上 `dsh-backstage` 未占用（发布前查询 404）；peer 依赖（`@deepseek-ai/dsh-*` 0.2.2-rc.5 起可用）均已发布到 npm。
-- `pnpm pack` 通过 `prepack` 检查并产出 `dsh-backstage-1.0.0.tgz`，内容含 `bin/dsh-winsta-run.exe`、`.github/workflows/publish.yml`、`LICENSE`、`docs/DETAIL.md`、`scripts/*`、`src/winsta-run.c`。
-- 发布 zip（`dsh-backstage-1.0.0.zip`）**不含**本地构建的二进制与 `build/`：启动器由 `.github/workflows/publish.yml` 在 `windows-latest` 上编译后才打包发布。
+- `1.0.0` 的元数据与 tarball 已由 GitHub Actions 通过 OIDC 可信发布上架（含 provenance），但它是旧的“替换服务”设计，启用会报 `service "shell" has been registered`；`1.0.1` 改为运行时补丁。
+- 发布流程不变：`.github/workflows/publish.yml` 在 `windows-latest` 构建启动器 → `prepack` 检查 → `npm pack` → 推 `v*` 标签时 OIDC 发布。
+- 发布 zip 不含本地构建的二进制与 `build/`。
+
+运行时补丁版本（`1.0.1`）的挂载/卸载行为在本机重新安装后验证；隔离、工具、提示、沙箱行为的证据来自同一套隔离代码路径（见上）。
 
 受限沙箱组合（`scripts/sandbox-proof.ps1`，standalone workspace-write）：
 
@@ -145,4 +156,4 @@ DSH 内（`always` 模式）：
 - 写入：私有 temp 允许、工作区允许、`D:\…\dsh-sandbox-test\outside.txt` 拒绝、`C:\Windows\Temp\…` 拒绝（均为 `UnauthorizedAccessException`）。
 - 整条链退出码 0，说明“隔离桌面 + 文件沙箱”可以叠加，且沙箱未被绕过。
 
-已知未在本次验证中覆盖：重启后的组合（本会话不重启应用；组合逻辑与已验证的实时挂载一致）、改名后设置卡片需刷新页面加载（模块 id/行 id/槽 key 已核对一致；本会话没有浏览器控制能力，请在刷新后到 **设置 → 插件 → Backstage → 行 `backstage`** 确认四选一控件）、UWP 应用、提权窗口的 UIA。
+已知未在本次验证中覆盖：运行时补丁版本的实时启用/禁用（需要在已运行的 Harness 里安装一次验证）、改名后设置卡片需刷新页面加载（模块 id/行 id/槽 key 已核对一致；本会话没有浏览器控制能力，请在刷新后到 **设置 → 插件 → Backstage → 行 `backstage`** 确认四选一控件）、UWP 应用、提权窗口的 UIA。

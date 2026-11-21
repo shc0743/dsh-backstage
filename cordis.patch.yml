@@ -1,11 +1,11 @@
-# Backstage bundle.
+# Backstage patches the shipped PowerShell executor in place at runtime
+# (`resolve` / `argv` / `confine` on its prototype) instead of replacing the
+# `shell` service. A service replacement cannot take over from an already
+# running provider, which is why the first design failed to enable live with
+# "service shell has been registered". Patches are restored when the plugin
+# unloads, so enabling and disabling this bundle takes effect immediately.
 #
-# The shipped `pwsh-sandbox` row cannot be renamed by a patch (a truthy `name`
-# only asserts the existing name), so it is disabled and this bundle inserts
-# its own executor row. The row is Windows-only; other platforms keep the
-# shipped bash executor.
-- id: pwsh-sandbox
-  disabled: true
+# The row is Windows-only; other platforms keep the shipped bash executor.
 - insert:
     - id: backstage
       name: dsh-backstage

@@ -1,6 +1,6 @@
 {
   "name": "dsh-backstage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Backstage: runs DeepSeek Harness shell commands on a private Windows desktop so windows, tests and automation never appear on your screen or take focus.",
   "license": "Apache-2.0",
   "type": "module",
@@ -52,7 +52,6 @@
     "prepack": "node scripts/prepack.mjs"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-pwsh-sandbox": ">=0.2.2-rc.5",
     "@deepseek-ai/dsh-sandbox": ">=0.2.2-rc.5",
     "@deepseek-ai/dsh-shell": ">=0.2.2-rc.5",
     "@deepseek-ai/dsh-tools": ">=0.2.2-rc.5",
